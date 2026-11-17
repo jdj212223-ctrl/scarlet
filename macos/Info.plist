@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Scarlet</string>
+  <key>CFBundleDisplayName</key><string>Scarlet</string>
+  <key>CFBundleIdentifier</key><string>app.scarlet.client</string>
+  <key>CFBundleExecutable</key><string>scarlet</string>
+  <key>CFBundleIconFile</key><string>Scarlet</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>0.1.0</string>
+  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>YouTube's voice search uses the microphone.</string>
+  <key>NSCameraUsageDescription</key><string>YouTube Studio can record from your camera.</string>
+</dict>
+</plist>

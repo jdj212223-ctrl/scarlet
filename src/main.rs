@@ -192,6 +192,23 @@ fn main() -> wry::Result<()> {
         .build(&event_loop)
         .expect("could not open a window");
 
+    // A real menu bar: on macOS, copy/paste/select-all in web views and ⌘Q only work through menu items.
+    let menu = muda::Menu::new();
+    {
+        use muda::{PredefinedMenuItem as P, Submenu};
+        let about = muda::AboutMetadata { name: Some("Scarlet".into()), version: Some(env!("CARGO_PKG_VERSION").into()),
+            comments: Some("YouTube, Music, TV and Studio in one window.".into()), ..Default::default() };
+        let app = Submenu::with_items("Scarlet", true, &[&P::about(None, Some(about)), &P::separator(), &P::services(None), &P::separator(),
+            &P::hide(None), &P::hide_others(None), &P::show_all(None), &P::separator(), &P::quit(None)]).expect("menu");
+        let edit = Submenu::with_items("Edit", true, &[&P::undo(None), &P::redo(None), &P::separator(), &P::cut(None), &P::copy(None),
+            &P::paste(None), &P::select_all(None)]).expect("menu");
+        let view = Submenu::with_items("View", true, &[&P::fullscreen(None)]).expect("menu");
+        let win = Submenu::with_items("Window", true, &[&P::minimize(None), &P::maximize(None), &P::separator(), &P::close_window(None)]).expect("menu");
+        menu.append_items(&[&app, &edit, &view, &win]).expect("menu");
+        #[cfg(target_os = "macos")]
+        menu.init_for_nsapp();
+    }
+
     let mut settings = Settings::load();
     // One shared web context so all YouTube sections share the same Google sign-in, kept between launches.
     let mut context = WebContext::new(Some(data_dir().join("web")));

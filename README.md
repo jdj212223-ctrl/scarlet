@@ -41,3 +41,7 @@ cargo build --release
 
 Built with [tao](https://crates.io/crates/tao) + [wry](https://crates.io/crates/wry), the window and webview libraries
 behind Tauri.
+
+## Mac app
+`macos/bundle.sh` builds **Scarlet.app** (with its icon, menu bar and an ad-hoc signature); `macos/bundle.sh --install`
+also copies it to /Applications. The icon is drawn by `macos/make-icon.swift`.
