@@ -23,6 +23,10 @@ const INJECT_JS: &str = include_str!("../assets/inject.js");
 /// A TV browser user agent: youtube.com/tv only shows its big-screen (Leanback) layout to TVs.
 const TV_AGENT: &str = "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) Version/6.5 TV Safari/537.36";
 
+/// The plain webview on macOS/Linux doesn't call itself Safari, so YouTube Music ("not optimized for your browser") and
+/// Google sign-in turn it away. Present as desktop Safari there (Windows' WebView2 already says Edge, which is fine).
+const DESKTOP_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15";
+
 /// The site sections, in tab order: (id, start page, user agent override).
 const SITES: [(&str, &str, Option<&str>); 4] = [
     ("youtube", "https://www.youtube.com/", None),
@@ -212,6 +216,8 @@ fn main() -> wry::Result<()> {
             .with_back_forward_navigation_gestures(true);
         if let Some(a) = agent {
             b = b.with_user_agent(a);
+        } else if !cfg!(windows) {
+            b = b.with_user_agent(DESKTOP_AGENT);
         }
         pages.insert(id, b.build_as_child(&window)?);
     }
