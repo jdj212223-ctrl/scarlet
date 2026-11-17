@@ -148,7 +148,9 @@ fn start_download(id: u32, url: String, audio: bool, proxy: EventLoopProxy<Ev>) 
         if audio {
             args.extend(["-f".into(), "bestaudio[ext=m4a]/bestaudio".into(), "-x".into(), "--audio-format".into(), "m4a".into()]);
         } else {
-            args.extend(["-f".into(), "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b".into(), "--merge-output-format".into(), "mp4".into()]);
+            // H.264 first: every Mac player (QuickTime, VLC, iMovie) opens it; AV1 only plays on some Macs and makes Finder
+            // hand the file to odd apps like Books.
+            args.extend(["-f".into(), "bv*[vcodec^=avc1]+ba[ext=m4a]/b[vcodec^=avc1]/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b".into(), "--merge-output-format".into(), "mp4".into()]);
         }
         args.extend(["--print".into(), "before_dl:TITLE %(title)s".into(), "--progress".into(), url.clone()]);
         let mut title = url.clone();
