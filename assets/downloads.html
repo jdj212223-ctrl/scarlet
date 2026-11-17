@@ -16,6 +16,7 @@
   button.go { background: var(--red); color: #fff; font-weight: 600; }
   button:disabled { opacity: .45; cursor: default; }
   p.rights { margin: 14px 0 0; color: var(--dim); line-height: 1.45; }
+  label.anyv { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; color: var(--warn); line-height: 1.45; font-size: 13px; }
   .info { margin-top: 12px; color: var(--dim); min-height: 1.4em; }
   .info.ok { color: var(--ok); } .info.warn { color: var(--warn); } .info.bad { color: #ff6b6b; }
   ul { list-style: none; padding: 0; margin: 0; }
@@ -48,6 +49,9 @@
     <div id="info" class="info"></div>
     <p class="rights">Scarlet checks this itself: a video is allowed when its license is Creative Commons, or when it's on
       <b>the channel you're signed in with</b> (it reads your channel from the Studio tab).</p>
+    <label class="anyv"><input id="anyv" type="checkbox">
+      <span><b>Let me download any video</b> (turns the check off). For personal use only. Downloading other people's
+        videos breaks YouTube's terms and can break copyright law where you live, so that's on you, not Scarlet.</span></label>
   </div>
 
   <div class="card">
@@ -62,7 +66,7 @@
   const send = o => window.ipc.postMessage(JSON.stringify(o));
   const $ = id => document.getElementById(id);
   let checked = null; // { url, cc, title, channel }
-  const canGo = () => checked && checked.url === $('url').value.trim() && (checked.cc || checked.own);
+  const canGo = () => checked && checked.url === $('url').value.trim() && (checked.cc || checked.own || checked.anyVideo);
   const refresh = () => { $('go').disabled = !canGo(); };
   $('url').oninput = () => { checked = null; $('info').textContent = ''; $('info').className = 'info'; refresh(); };
   $('check').onclick = () => {
@@ -80,10 +84,11 @@
   window.setFolder = f => { $('folder').textContent = f; };
   window.onChecked = r => {
     if (r.error) { $('info').className = 'info bad'; $('info').textContent = r.error; return; }
-    checked = { url: r.url, cc: r.cc, own: r.own, title: r.title, channel: r.channel };
-    $('info').className = 'info ' + (r.cc || r.own ? 'ok' : 'bad');
+    checked = { url: r.url, cc: r.cc, own: r.own, anyVideo: r.anyVideo, title: r.title, channel: r.channel };
+    $('info').className = 'info ' + (r.cc || r.own ? 'ok' : r.anyVideo ? 'warn' : 'bad');
     $('info').textContent = `“${r.title}” by ${r.channel} · ` +
       (r.own ? 'your own video ✓' : r.cc ? 'Creative Commons ✓ free to download'
+        : r.anyVideo ? `Not yours, ${r.license || 'standard YouTube license'}. Allowed because you turned the check off (personal use).`
         : r.signedIn ? "Not your video and not Creative Commons, so Scarlet won't download it."
         : "Not Creative Commons. Sign in (open the Studio tab once) to download your own videos.");
     refresh();
@@ -100,6 +105,8 @@
     li.querySelector('.s').textContent = j.status;
     li.querySelector('i').style.width = (j.percent ?? 0) + '%';
   };
+  $('anyv').onchange = e => { checked = null; refresh(); $('info').textContent = ''; send({ cmd: 'any_video', on: e.target.checked }); };
+  window.setAnyVideo = on => { $('anyv').checked = !!on; };
   send({ cmd: 'ready' });
 </script>
 </body>

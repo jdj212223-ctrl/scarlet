@@ -46,11 +46,15 @@ struct Settings {
     adblock: bool,
     sponsorblock: bool,
     last_tab: String,
+    /// Off by default. When on, the downloader skips the "Creative Commons or your own channel" check: the user's own
+    /// choice, for personal use, with YouTube's terms being their responsibility.
+    #[serde(default)]
+    any_video: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { adblock: true, sponsorblock: true, last_tab: "youtube".into() }
+        Settings { adblock: true, sponsorblock: true, last_tab: "youtube".into(), any_video: false }
     }
 }
 
@@ -98,7 +102,7 @@ fn my_channel(studio: Option<&WebView>) -> Option<String> {
 /// yt-dlp: first `-J` to read title, channel and license. Allowed: Creative Commons videos, and videos whose channel is
 /// the signed-in one (checked against Studio, not just a checkbox). Only checked-and-allowed links go in `allowed`, and
 /// downloads refuse anything else.
-fn check_video(url: String, mine: Option<String>, allowed: Arc<Mutex<HashSet<String>>>, proxy: EventLoopProxy<Ev>) {
+fn check_video(url: String, mine: Option<String>, any_video: bool, allowed: Arc<Mutex<HashSet<String>>>, proxy: EventLoopProxy<Ev>) {
     std::thread::spawn(move || {
         let out = Command::new(ytdlp()).args(["-J", "--no-playlist", "--no-warnings", &url]).output();
         let reply = match out {
@@ -113,7 +117,7 @@ fn check_video(url: String, mine: Option<String>, allowed: Arc<Mutex<HashSet<Str
                     let license = v["license"].as_str().unwrap_or("").to_string();
                     let cc = license.to_lowercase().contains("creative commons");
                     let own = mine.as_deref().is_some_and(|m| v["channel_id"].as_str() == Some(m));
-                    if cc || own {
+                    if cc || own || any_video {
                         allowed.lock().unwrap().insert(url.clone());
                     }
                     serde_json::json!({
@@ -123,6 +127,7 @@ fn check_video(url: String, mine: Option<String>, allowed: Arc<Mutex<HashSet<Str
                         "license": license,
                         "cc": cc,
                         "own": own,
+                        "anyVideo": any_video,
                         "signedIn": mine.is_some(),
                     })
                 }
@@ -353,12 +358,19 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(Ev::Downloads(msg)) => {
                 let Ok(v) = serde_json::from_str::<serde_json::Value>(&msg) else { return };
                 match v["cmd"].as_str() {
+                    Some("any_video") => {
+                        settings.any_video = v["on"].as_bool().unwrap_or(false);
+                        settings.save();
+                        allowed.lock().unwrap().clear(); // re-check links under the new rule
+                        let _ = downloads.evaluate_script(&format!("window.setAnyVideo({})", settings.any_video));
+                    }
                     Some("ready") => {
+                        let _ = downloads.evaluate_script(&format!("window.setAnyVideo({})", settings.any_video));
                         let _ = downloads.evaluate_script(&format!("window.setFolder({:?})", download_dir().to_string_lossy()));
                     }
                     Some("check") => {
                         let mine = my_channel(pages.get("studio"));
-                        check_video(v["url"].as_str().unwrap_or("").to_string(), mine, allowed.clone(), proxy.clone());
+                        check_video(v["url"].as_str().unwrap_or("").to_string(), mine, settings.any_video, allowed.clone(), proxy.clone());
                     }
                     Some("download") => {
                         let url = v["url"].as_str().unwrap_or("").to_string();

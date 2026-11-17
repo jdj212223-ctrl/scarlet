@@ -30,6 +30,8 @@ Scarlet downloads only:
 - **Your own videos**: it compares the video's channel with the channel you're signed in as, which it reads from the
   Studio tab (`studio.youtube.com/channel/UC…`). There's no "trust me" checkbox, and the app (not just the page)
   refuses any link that didn't pass the check.
+- **Any video**, only if you tick "Let me download any video" in the Downloads tab (off by default, saved in your
+  settings). That's for personal use, and YouTube's terms are then your responsibility.
 
 Files go to `Downloads/Scarlet/`, as MP4 video or M4A audio. Needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
 ffmpeg (macOS: `brew install yt-dlp ffmpeg`).
