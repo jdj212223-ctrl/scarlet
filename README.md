@@ -25,9 +25,11 @@ Your settings are saved in `~/Library/Application Support/Scarlet/settings.json`
 
 ## Downloads: the rules
 YouTube's terms only allow downloading other people's videos through YouTube itself (Premium's offline mode). So
-Scarlet downloads:
-- **Creative Commons** videos: it checks the license itself, nothing to confirm.
-- **Your own videos** (or ones you have permission for): tick "This is my own video" first.
+Scarlet downloads only:
+- **Creative Commons** videos: it checks the license with yt-dlp.
+- **Your own videos**: it compares the video's channel with the channel you're signed in as, which it reads from the
+  Studio tab (`studio.youtube.com/channel/UC…`). There's no "trust me" checkbox, and the app (not just the page)
+  refuses any link that didn't pass the check.
 
 Files go to `Downloads/Scarlet/`, as MP4 video or M4A audio. Needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
 ffmpeg (macOS: `brew install yt-dlp ffmpeg`).

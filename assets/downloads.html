@@ -15,7 +15,7 @@
   select, button { background: #2a2a2a; color: var(--fg); border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; cursor: pointer; }
   button.go { background: var(--red); color: #fff; font-weight: 600; }
   button:disabled { opacity: .45; cursor: default; }
-  label.rights { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; color: var(--dim); line-height: 1.45; }
+  p.rights { margin: 14px 0 0; color: var(--dim); line-height: 1.45; }
   .info { margin-top: 12px; color: var(--dim); min-height: 1.4em; }
   .info.ok { color: var(--ok); } .info.warn { color: var(--warn); } .info.bad { color: #ff6b6b; }
   ul { list-style: none; padding: 0; margin: 0; }
@@ -46,8 +46,8 @@
       <button id="go" class="go" disabled>Download</button>
     </div>
     <div id="info" class="info"></div>
-    <label class="rights"><input id="mine" type="checkbox">
-      <span>This is my own video (or I have the owner's permission). Creative Commons videos don't need this: Scarlet checks the license itself.</span></label>
+    <p class="rights">Scarlet checks this itself: a video is allowed when its license is Creative Commons, or when it's on
+      <b>the channel you're signed in with</b> (it reads your channel from the Studio tab).</p>
   </div>
 
   <div class="card">
@@ -62,10 +62,9 @@
   const send = o => window.ipc.postMessage(JSON.stringify(o));
   const $ = id => document.getElementById(id);
   let checked = null; // { url, cc, title, channel }
-  const canGo = () => checked && checked.url === $('url').value.trim() && (checked.cc || $('mine').checked);
+  const canGo = () => checked && checked.url === $('url').value.trim() && (checked.cc || checked.own);
   const refresh = () => { $('go').disabled = !canGo(); };
   $('url').oninput = () => { checked = null; $('info').textContent = ''; $('info').className = 'info'; refresh(); };
-  $('mine').onchange = refresh;
   $('check').onclick = () => {
     const url = $('url').value.trim();
     if (!url) return;
@@ -74,17 +73,19 @@
   };
   $('go').onclick = () => {
     if (!canGo()) return;
-    send({ cmd: 'download', url: checked.url, format: $('fmt').value, own: $('mine').checked });
+    send({ cmd: 'download', url: checked.url, format: $('fmt').value });
   };
   // Called from Rust.
   window.setUrl = u => { $('url').value = u; $('url').oninput(); $('check').onclick(); };
   window.setFolder = f => { $('folder').textContent = f; };
   window.onChecked = r => {
     if (r.error) { $('info').className = 'info bad'; $('info').textContent = r.error; return; }
-    checked = { url: r.url, cc: r.cc, title: r.title, channel: r.channel };
-    $('info').className = 'info ' + (r.cc ? 'ok' : 'warn');
+    checked = { url: r.url, cc: r.cc, own: r.own, title: r.title, channel: r.channel };
+    $('info').className = 'info ' + (r.cc || r.own ? 'ok' : 'bad');
     $('info').textContent = `“${r.title}” by ${r.channel} · ` +
-      (r.cc ? 'Creative Commons ✓ free to download' : `License: ${r.license || 'standard YouTube license'}. Only download it if it's your own video.`);
+      (r.own ? 'your own video ✓' : r.cc ? 'Creative Commons ✓ free to download'
+        : r.signedIn ? "Not your video and not Creative Commons, so Scarlet won't download it."
+        : "Not Creative Commons. Sign in (open the Studio tab once) to download your own videos.");
     refresh();
   };
   const jobs = {};

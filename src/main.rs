@@ -5,7 +5,8 @@
 //! save Creative Commons videos or videos you confirm are your own.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -85,9 +86,19 @@ enum Ev {
     ToDownloads(String),
 }
 
-/// yt-dlp: first `-J` to read title, channel and license; Creative Commons videos are fine to save, anything else only
-/// when the user confirms it's their own.
-fn check_video(url: String, proxy: EventLoopProxy<Ev>) {
+/// The signed-in channel, read from the Studio tab: Studio always sits on studio.youtube.com/channel/UC… for the
+/// channel you're signed in as. None when not signed in (Studio shows Google's sign-in page instead).
+fn my_channel(studio: Option<&WebView>) -> Option<String> {
+    let url = studio?.url().ok()?;
+    let rest = url.split("studio.youtube.com/channel/").nth(1)?;
+    let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    (id.starts_with("UC") && id.len() == 24).then_some(id)
+}
+
+/// yt-dlp: first `-J` to read title, channel and license. Allowed: Creative Commons videos, and videos whose channel is
+/// the signed-in one (checked against Studio, not just a checkbox). Only checked-and-allowed links go in `allowed`, and
+/// downloads refuse anything else.
+fn check_video(url: String, mine: Option<String>, allowed: Arc<Mutex<HashSet<String>>>, proxy: EventLoopProxy<Ev>) {
     std::thread::spawn(move || {
         let out = Command::new(ytdlp()).args(["-J", "--no-playlist", "--no-warnings", &url]).output();
         let reply = match out {
@@ -100,12 +111,19 @@ fn check_video(url: String, proxy: EventLoopProxy<Ev>) {
                 Err(_) => serde_json::json!({ "error": "yt-dlp gave an answer Scarlet couldn't read." }),
                 Ok(v) => {
                     let license = v["license"].as_str().unwrap_or("").to_string();
+                    let cc = license.to_lowercase().contains("creative commons");
+                    let own = mine.as_deref().is_some_and(|m| v["channel_id"].as_str() == Some(m));
+                    if cc || own {
+                        allowed.lock().unwrap().insert(url.clone());
+                    }
                     serde_json::json!({
                         "url": url,
                         "title": v["title"].as_str().unwrap_or("?"),
                         "channel": v["channel"].as_str().or(v["uploader"].as_str()).unwrap_or("?"),
                         "license": license,
-                        "cc": license.to_lowercase().contains("creative commons"),
+                        "cc": cc,
+                        "own": own,
+                        "signedIn": mine.is_some(),
                     })
                 }
             },
@@ -266,6 +284,7 @@ fn main() -> wry::Result<()> {
         "youtube".into()
     };
     let mut next_job = 1u32;
+    let allowed: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
 
     let show = |tab: &str, pages: &HashMap<&'static str, WebView>, downloads: &WebView, bar: &WebView| {
         for (id, w) in pages {
@@ -337,10 +356,20 @@ fn main() -> wry::Result<()> {
                     Some("ready") => {
                         let _ = downloads.evaluate_script(&format!("window.setFolder({:?})", download_dir().to_string_lossy()));
                     }
-                    Some("check") => check_video(v["url"].as_str().unwrap_or("").to_string(), proxy.clone()),
+                    Some("check") => {
+                        let mine = my_channel(pages.get("studio"));
+                        check_video(v["url"].as_str().unwrap_or("").to_string(), mine, allowed.clone(), proxy.clone());
+                    }
                     Some("download") => {
-                        start_download(next_job, v["url"].as_str().unwrap_or("").to_string(), v["format"] == "audio", proxy.clone());
-                        next_job += 1;
+                        let url = v["url"].as_str().unwrap_or("").to_string();
+                        // The page can't skip the check: only links the check approved get downloaded.
+                        if allowed.lock().unwrap().contains(&url) {
+                            start_download(next_job, url, v["format"] == "audio", proxy.clone());
+                            next_job += 1;
+                        } else {
+                            let r = serde_json::json!({ "error": "Scarlet only downloads Creative Commons videos or videos from your own channel." });
+                            let _ = downloads.evaluate_script(&format!("window.onChecked({r})"));
+                        }
                     }
                     Some("open_folder") => {
                         let opener = if cfg!(target_os = "macos") { "open" } else if cfg!(windows) { "explorer" } else { "xdg-open" };
