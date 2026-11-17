@@ -27,6 +27,11 @@ const TV_AGENT: &str = "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5) AppleWebKit/537
 /// Google sign-in turn it away. Present as desktop Safari there (Windows' WebView2 already says Edge, which is fine).
 const DESKTOP_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15";
 
+/// Scarlet's own website data store on macOS 14+ (cookies, sign-in, settings of the YouTube sites). Never change it, or
+/// everyone gets signed out.
+#[cfg(target_os = "macos")]
+const STORE_ID: [u8; 16] = *b"scarlet-yt-store";
+
 /// The site sections, in tab order: (id, start page, user agent override).
 const SITES: [(&str, &str, Option<&str>); 4] = [
     ("youtube", "https://www.youtube.com/", None),
@@ -231,6 +236,13 @@ fn main() -> wry::Result<()> {
             .with_initialization_script(&settings.js())
             .with_initialization_script(INJECT_JS)
             .with_back_forward_navigation_gestures(true);
+        // macOS: one fixed, persistent website data store, so the Google sign-in stays cached across restarts, rebuilds
+        // and moving the app (the default store is tied to whichever binary or bundle is running).
+        #[cfg(target_os = "macos")]
+        {
+            use wry::WebViewBuilderExtDarwin;
+            b = b.with_data_store_identifier(STORE_ID);
+        }
         if let Some(a) = agent {
             b = b.with_user_agent(a);
         } else if !cfg!(windows) {

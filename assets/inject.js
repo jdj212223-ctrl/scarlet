@@ -16,8 +16,33 @@
     if (on('adblock') && !style) { style = document.createElement('style'); style.textContent = AD_CSS; (document.head || document.documentElement).appendChild(style); }
     if (!on('adblock') && style) { style.remove(); style = null; }
   };
+  // YouTube TV (youtube.com/tv) is a different app with its own elements: spot its ad by the badge ("Sponsored" /
+  // "Ad" in the corner) or ad renderers, then jump the ad video to its end and press any Skip button.
+  const TV = location.pathname.startsWith('/tv');
+  const AD_WORDS = /^(sponsored|ad|ads|ad \d+ of \d+|ad · \d+:\d+|sponzorováno|reklama|anzeige|publicité|anuncio)$/i; // the whole label, so titles like \"Ad Astra\" never count
+  const tvAdShowing = () => {
+    if (document.querySelector('ytlr-ad-badge-renderer, ytlr-skip-ad-renderer, ytlr-ad-preview-renderer, [class*="AdBadge"], [class*="ad-badge"], [class*="adBadge"]')) return true;
+    for (const e of document.querySelectorAll('body *')) {
+      if (e.childElementCount === 0 && e.offsetParent !== null && AD_WORDS.test((e.textContent || '').trim())) return true;
+    }
+    return false;
+  };
+  const skipTvAd = () => {
+    if (!tvAdShowing()) return;
+    for (const e of document.querySelectorAll('ytlr-skip-ad-renderer, ytlr-skip-button-renderer, [class*="skip" i]')) e.click?.();
+    for (const v of document.querySelectorAll('video')) {
+      if (isFinite(v.duration) && v.duration > 0 && v.currentTime < v.duration - 0.2) { v.muted = true; v.currentTime = v.duration; }
+    }
+  };
+  let tvUnmute = false;
   const skipAd = () => {
     if (!on('adblock')) return;
+    if (TV) {
+      const ad = tvAdShowing();
+      if (ad) { skipTvAd(); tvUnmute = true; }
+      else if (tvUnmute) { for (const v of document.querySelectorAll('video')) v.muted = false; tvUnmute = false; }
+      return;
+    }
     const player = document.querySelector('.html5-video-player');
     const skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
     if (skip) skip.click();
